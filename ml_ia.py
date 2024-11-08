@@ -111,7 +111,7 @@ if visualise == 1:
     print("\n\nPrinting Opel and Peugeot Merged Info")
     print( merged_dataset.info() )
     sliced_df = merged_dataset.head(5)
-    sliced_df = sliced_df.append(merged_dataset.tail(5))
+    sliced_df = pd.concat([sliced_df, merged_dataset.tail(5)], ignore_index=True)
     print (sliced_df)
     merged_dataset.to_csv('IntermediateDataPlots/merged.csv', index=False)
 
