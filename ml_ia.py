@@ -7,8 +7,17 @@ import pandas as pd
 import numpy as np
 import seaborn as sns # Seaborn is a visualization library based on matplotlib
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+import csv
+from collections import Counter
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, LabelBinarizer
 from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc
+from sklearn.metrics import confusion_matrix
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import SMOTE
 
 visualise = 1
 
@@ -178,15 +187,12 @@ X_scaled = scaler.fit_transform(X)
 # Split the data between testing and training
 X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42)
 
-
+X_train_df = pd.DataFrame(X_train)
+X_train_df.to_csv('IntermediateDataPlots/X_train.csv')
 
 ###################################################################################
 # Addressing class imbalance
 ###################################################################################
-
-# Undersampling
-
-# SMOTE
 
 value_driving_peugeot = peugeot['drivingStyle'].value_counts()
 print('\n\nPrinting the count of driving style values from the Peugeot dataset')
@@ -207,3 +213,117 @@ Merged: EvenPaceStyle: 21003 AgressiveStyle: 2759 Minority class outnumbered ove
 There is no formal definiion of imbalance, but I suspect we do have an imbalance here,
 at least with the Peugeot data.
 '''
+
+# Undersampling
+
+n_agressive_samples = sum(y_train.encodedDrivingStyle == 0) # 1901 = 0 = Agressive
+n_evenpace_samples = sum(y_train.encodedDrivingStyle == 1) # 14732 = 1 = EvenPace
+print( "\n\nNumber of Agressive driving style samples: ", n_agressive_samples )
+print( "Number of EvenPace driving style samples: ", n_evenpace_samples )
+undersample = RandomUnderSampler(sampling_strategy=0.5)
+X_train_under, y_train_under = undersample.fit_resample(X_train, y_train)
+
+print("\n\nShape of X_train_under: ", np.shape(X_train_under) )
+print( "Shape of y_train_under: ", np.shape(y_train_under) )
+n_agressive_samples_under = sum(y_train_under.encodedDrivingStyle == 0)
+n_evenpace_samples_under = sum(y_train_under.encodedDrivingStyle == 1)
+print( "\n\nNumber of Agressive driving style samples undersampled: ", n_agressive_samples_under ) #1902
+print( "Number of EvenPace driving style samples undersampled: ", n_evenpace_samples_under ) #3802
+
+X_train_under_df = pd.DataFrame(X_train_under)
+X_train_under_df.to_csv('IntermediateDataPlots/X_train_under.csv')
+y_train_under_df = pd.DataFrame(y_train_under)
+y_train_under_df.to_csv('IntermediateDataPlots/y_train_under.csv')
+
+# SMOTE
+
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample( X_train_under, y_train_under )
+
+print("\n\nShape of X_train_smote: ", np.shape(X_train_smote) )
+print( "Shape of y_train_smote: ", np.shape(y_train_smote) )
+n_agressive_samples_smote = sum(y_train_smote.encodedDrivingStyle == 0)
+n_evenpace_samples_smote = sum(y_train_smote.encodedDrivingStyle == 1)
+print( "\n\nNumber of Agressive driving style samples undersampled: ", n_agressive_samples_smote ) #3802
+print( "Number of EvenPace driving style samples undersampled: ", n_evenpace_samples_smote ) #3802
+
+###################################################################################
+# Support vector machine
+###################################################################################
+
+svm_clf = SVC(kernel="linear", probability=True)
+svm_clf.fit(X_train_under, np.ravel(y_train_under))
+y_pred_svm = svm_clf.predict(X_test)
+
+print( "Shape of y_test: ", np.shape(y_test) )
+print( "Shape of y_pred_svm: ", np.shape(y_pred_svm) )
+
+print( "\n\nPRINT RESULTS FOR SVM" )
+print("Accuracy:", accuracy_score( y_test, y_pred_svm))
+print(classification_report( y_test, y_pred_svm ))
+
+print( confusion_matrix( y_test, y_pred_svm ) )
+
+###################################################################################
+# Logistic Regression
+###################################################################################
+
+lgr_clf = LogisticRegression(max_iter=1000)
+lgr_clf.fit(X_train_under, np.ravel(y_train_under))
+y_pred_lgr = lgr_clf.predict(X_test)
+
+print( "\n\nPRINT RESULTS FOR Logistic Regression" )
+print("Accuracy:", accuracy_score(y_test, y_pred_lgr))
+print(classification_report(y_test, y_pred_lgr))
+
+print( confusion_matrix( y_test, y_pred_lgr ) )
+
+###################################################################################
+# K Nearest neighbors
+###################################################################################
+
+knn_clf = KNeighborsClassifier(n_neighbors=5)
+knn_clf.fit(X_train_under, np.ravel(y_train_under))
+y_pred_knn = knn_clf.predict(X_test)
+
+print( "\n\nPRINT RESULTS FOR KNN" )
+print("Accuracy:", accuracy_score(y_test, y_pred_knn))
+print(classification_report(y_test, y_pred_knn))
+
+print( confusion_matrix( y_test, y_pred_knn ) )
+
+###################################################################################
+# ROC and AUC
+###################################################################################
+
+decision_scores = svm_clf.decision_function(X_test)
+fpr_svm, tpr_svm, threshold_svm = roc_curve(y_test, decision_scores)
+roc_auc_svm = auc(fpr_svm, tpr_svm)
+
+probs_lgr = lgr_clf.predict_proba(X_test)
+preds_lgr = probs_lgr[:,1]
+fpr_lgr, tpr_lgr, threshold_lgr = roc_curve(y_test, preds_lgr)
+roc_auc_lgr = auc(fpr_lgr, tpr_lgr)
+
+probs_knn = knn_clf.predict_proba(X_test)
+preds_knn = probs_knn[:,1]
+fpr_knn, tpr_knn, threshold_knn = roc_curve(y_test, preds_knn)
+roc_auc_knn = auc(fpr_knn, tpr_knn)
+
+plt.title('Receiver Operating Characteristic')
+plt.plot(fpr_svm, tpr_svm, 'r', label = 'AUC SVM = %0.2f' % roc_auc_svm)
+plt.plot(fpr_lgr, tpr_lgr, 'g', label = 'AUC LGR = %0.2f' % roc_auc_lgr)
+plt.plot(fpr_knn, tpr_knn, 'b', label = 'AUC KNN = %0.2f' % roc_auc_knn)
+plt.legend(loc = 'lower right')
+plt.plot([0, 1], [0, 1],'m--')
+plt.xlim([0, 1])
+plt.ylim([0, 1])
+plt.ylabel('True Positive Rate')
+plt.xlabel('False Positive Rate')
+plt.show()
+
+
+
+
+
+
