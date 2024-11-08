@@ -11,7 +11,6 @@ import csv
 from collections import Counter
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, LabelBinarizer
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc
@@ -248,28 +247,11 @@ print( "\n\nNumber of Agressive driving style samples undersampled: ", n_agressi
 print( "Number of EvenPace driving style samples undersampled: ", n_evenpace_samples_smote ) #3802
 
 ###################################################################################
-# Support vector machine
-###################################################################################
-
-svm_clf = SVC(kernel="linear", probability=True)
-svm_clf.fit(X_train_under, np.ravel(y_train_under))
-y_pred_svm = svm_clf.predict(X_test)
-
-print( "Shape of y_test: ", np.shape(y_test) )
-print( "Shape of y_pred_svm: ", np.shape(y_pred_svm) )
-
-print( "\n\nPRINT RESULTS FOR SVM" )
-print("Accuracy:", accuracy_score( y_test, y_pred_svm))
-print(classification_report( y_test, y_pred_svm ))
-
-print( confusion_matrix( y_test, y_pred_svm ) )
-
-###################################################################################
 # Logistic Regression
 ###################################################################################
 
 lgr_clf = LogisticRegression(max_iter=1000)
-lgr_clf.fit(X_train_under, np.ravel(y_train_under))
+lgr_clf.fit(X_train_smote, np.ravel(y_train_smote))
 y_pred_lgr = lgr_clf.predict(X_test)
 
 print( "\n\nPRINT RESULTS FOR Logistic Regression" )
@@ -283,7 +265,7 @@ print( confusion_matrix( y_test, y_pred_lgr ) )
 ###################################################################################
 
 knn_clf = KNeighborsClassifier(n_neighbors=5)
-knn_clf.fit(X_train_under, np.ravel(y_train_under))
+knn_clf.fit(X_train_smote, np.ravel(y_train_smote))
 y_pred_knn = knn_clf.predict(X_test)
 
 print( "\n\nPRINT RESULTS FOR KNN" )
@@ -296,10 +278,6 @@ print( confusion_matrix( y_test, y_pred_knn ) )
 # ROC and AUC
 ###################################################################################
 
-decision_scores = svm_clf.decision_function(X_test)
-fpr_svm, tpr_svm, threshold_svm = roc_curve(y_test, decision_scores)
-roc_auc_svm = auc(fpr_svm, tpr_svm)
-
 probs_lgr = lgr_clf.predict_proba(X_test)
 preds_lgr = probs_lgr[:,1]
 fpr_lgr, tpr_lgr, threshold_lgr = roc_curve(y_test, preds_lgr)
@@ -311,7 +289,6 @@ fpr_knn, tpr_knn, threshold_knn = roc_curve(y_test, preds_knn)
 roc_auc_knn = auc(fpr_knn, tpr_knn)
 
 plt.title('Receiver Operating Characteristic')
-plt.plot(fpr_svm, tpr_svm, 'r', label = 'AUC SVM = %0.2f' % roc_auc_svm)
 plt.plot(fpr_lgr, tpr_lgr, 'g', label = 'AUC LGR = %0.2f' % roc_auc_lgr)
 plt.plot(fpr_knn, tpr_knn, 'b', label = 'AUC KNN = %0.2f' % roc_auc_knn)
 plt.legend(loc = 'lower right')
