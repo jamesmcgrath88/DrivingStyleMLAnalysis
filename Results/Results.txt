@@ -1,0 +1,42 @@
+--- Logistic Regression ---
+
+
+LGR Best Parameters:  {'C': 1}
+LGR Best Score:  0.7251458839712257
+
+
+PRINT RESULTS FOR Logistic Regression
+Accuracy: 0.6949295181990321
+              precision    recall  f1-score   support
+
+           0       0.24      0.74      0.37       568
+           1       0.95      0.69      0.80      4185
+
+    accuracy                           0.69      4753
+   macro avg       0.60      0.71      0.58      4753
+weighted avg       0.87      0.69      0.75      4753
+
+[[ 420  148]
+ [1302 2883]]
+
+
+--- k Nearest Neighbours ---
+
+
+KNN Best Parameters:  {'n_neighbors': 1, 'weights': 'uniform'}
+KNN Best Score:  0.9749375995045082
+
+
+PRINT RESULTS FOR KNN
+Accuracy: 0.9408794445613297
+              precision    recall  f1-score   support
+
+           0       0.73      0.81      0.77       568
+           1       0.97      0.96      0.97      4185
+
+    accuracy                           0.94      4753
+   macro avg       0.85      0.89      0.87      4753
+weighted avg       0.94      0.94      0.94      4753
+
+[[ 462  106]
+ [ 175 4010]]
