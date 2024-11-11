@@ -9,8 +9,9 @@ import seaborn as sns # Seaborn is a visualization library based on matplotlib
 import matplotlib.pyplot as plt
 import csv
 from collections import Counter
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler, LabelBinarizer
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, LabelBinarizer
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc
@@ -20,8 +21,10 @@ from imblearn.over_sampling import SMOTE
 
 verbose = 1
 save_intermediate_files = 1
+
+use_under_sampling_before_smote = 0
 use_smote = 1
-use_under_sampling = 1
+use_under_sampling_after_smote = 0
 
 ###################################################################################
 # Data read, initial cleanup and merge for Peugeot journeys
@@ -154,7 +157,8 @@ Will want to return to this, there are a number of features which are highly
 correlated so can experiment with dropping some of them.
 '''
 
-feature_selected_dataset = trimmed_dataset.drop(columns=['MassAirFlow', 'VehicleSpeedInstantaneous'])
+#feature_selected_dataset = trimmed_dataset.drop(columns=['MassAirFlow', 'VehicleSpeedInstantaneous'])
+feature_selected_dataset = trimmed_dataset
 
 ###################################################################################
 # Label encoding driving style and brand
@@ -185,12 +189,12 @@ if verbose == 1:
 # Feature scaling and splitting into training/testing
 ###################################################################################
 
-# Feature scaling / Z-score normalization
+# Feature scaling
 scaler = MinMaxScaler()
 X_scaled = scaler.fit_transform(X)
 
 # Split the data between testing and training
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=68)
 
 if save_intermediate_files == 1:
     X_train_df = pd.DataFrame(X_train)
@@ -226,53 +230,82 @@ There is no formal definiion of imbalance, but I suspect we do have an imbalance
 at least with the Peugeot data.
 '''
 
-# SMOTE
-X_train_A = X_train
-y_train_A = y_train
-if use_smote == 1:
-    smote = SMOTE(random_state=68, sampling_strategy=0.25)
-    X_train_smote, y_train_smote = smote.fit_resample( X_train, y_train )
-    X_train_A = X_train_smote
-    y_train_A = y_train_smote
+# Undersampling Before
+X_train_A = None
+y_train_A = None
+if use_under_sampling_before_smote == 1:
+    undersample = RandomUnderSampler(sampling_strategy=0.5)
+    X_train_A, y_train_A = undersample.fit_resample(X_train, y_train)
     if verbose == 1:
-        print("\n\nShape of X_train_smote: ", np.shape(X_train_smote) )
-        print( "Shape of y_train_smote: ", np.shape(y_train_smote) )
-        n_agressive_samples_smote = sum(y_train_smote.encodedDrivingStyle == 0)
-        n_evenpace_samples_smote = sum(y_train_smote.encodedDrivingStyle == 1)
+        print("\n\nShape of X_train_under (before smote): ", np.shape(X_train_A) )
+        print( "Shape of y_train_under (before smote): ", np.shape(y_train_A) )
+        n_agressive_samples_under = sum(y_train_A.encodedDrivingStyle == 0)
+        n_evenpace_samples_under = sum(y_train_A.encodedDrivingStyle == 1)
+        print( "\n\nNumber of Agressive driving style samples undersampled (before smote): ", n_agressive_samples_under )
+        print( "Number of EvenPace driving style samples undersampled (before smote): ", n_evenpace_samples_under )
+else:
+    X_train_A = X_train
+    y_train_A = y_train
+
+# SMOTE
+X_train_B = None
+y_train_B = None
+if use_smote == 1:
+    smote = SMOTE(random_state=68, sampling_strategy=1.0)
+    X_train_B, y_train_B = smote.fit_resample( X_train_A, y_train_A )
+    if verbose == 1:
+        print("\n\nShape of X_train_smote: ", np.shape(X_train_B) )
+        print( "Shape of y_train_smote: ", np.shape(y_train_B) )
+        n_agressive_samples_smote = sum(y_train_B.encodedDrivingStyle == 0)
+        n_evenpace_samples_smote = sum(y_train_B.encodedDrivingStyle == 1)
         print( "\n\nNumber of Agressive driving style samples smote: ", n_agressive_samples_smote )
         print( "Number of EvenPace driving style samples smote: ", n_evenpace_samples_smote )
+else:
+    X_train_B = X_train_A
+    y_train_B = y_train_A
 
-# Undersampling
-X_train_B = X_train_A
-y_train_B = y_train_A
-if use_under_sampling == 1:
-    undersample = RandomUnderSampler(sampling_strategy=0.5)
-    X_train_under, y_train_under = undersample.fit_resample(X_train_A, y_train_A)
-    X_train_B = X_train_under
-    y_train_B = y_train_under
+# Undersampling After
+X_train_final = None
+y_train_final = None
+if use_under_sampling_after_smote == 1:
+    undersample = RandomUnderSampler(sampling_strategy=1.0)
+    X_train_final, y_train_final = undersample.fit_resample(X_train_B, y_train_B)
     if verbose == 1:
-        print("\n\nShape of X_train_under: ", np.shape(X_train_under) )
-        print( "Shape of y_train_under: ", np.shape(y_train_under) )
-        n_agressive_samples_under = sum(y_train_under.encodedDrivingStyle == 0)
-        n_evenpace_samples_under = sum(y_train_under.encodedDrivingStyle == 1)
-        print( "\n\nNumber of Agressive driving style samples undersampled: ", n_agressive_samples_under )
-        print( "Number of EvenPace driving style samples undersampled: ", n_evenpace_samples_under )
+        print("\n\nShape of X_train_under  (after smote): ", np.shape(X_train_final) )
+        print( "Shape of y_train_under  (after smote): ", np.shape(y_train_final) )
+        n_agressive_samples_under = sum(y_train_final.encodedDrivingStyle == 0)
+        n_evenpace_samples_under = sum(y_train_final.encodedDrivingStyle == 1)
+        print( "\n\nNumber of Agressive driving style samples undersampled (after smote): ", n_agressive_samples_under )
+        print( "Number of EvenPace driving style samples undersampled (after smote): ", n_evenpace_samples_under )
 
     if save_intermediate_files == 1:
-        X_train_under_df = pd.DataFrame(X_train_under)
-        X_train_under_df.to_csv('IntermediateDataPlots/X_train_under.csv')
-        y_train_under_df = pd.DataFrame(y_train_under)
-        y_train_under_df.to_csv('IntermediateDataPlots/y_train_under.csv')
+        X_train_under_df = pd.DataFrame(X_train_final)
+        X_train_under_df.to_csv('IntermediateDataPlots/X_train_under_after_smote.csv')
+        y_train_under_df = pd.DataFrame(y_train_final)
+        y_train_under_df.to_csv('IntermediateDataPlots/y_train_under_after_smote.csv')
+else:
+    X_train_final = X_train_B
+    y_train_final = y_train_B
 
 ###################################################################################
 # Logistic Regression
 ###################################################################################
 
-X_train_final = X_train_B
-y_train_final = y_train_B
+print( "\n\n--- Logistic Regression ---\n\n" )
 
-lgr_clf = LogisticRegression(max_iter=10000)
-lgr_clf.fit(X_train_final, np.ravel(y_train_final))
+param_grid_lgr = {'C': [0.0001, 0.005,0.001, 0.005, 0.01,0.1,1,10,100,1000]}
+
+lgr = LogisticRegression()
+
+lgr_gscv = GridSearchCV(lgr, param_grid_lgr, cv=5)
+
+lgr_gscv.fit(X_train_final, np.ravel(y_train_final))
+
+# Print the best parameters and the best score
+print("LGR Best Parameters: ", lgr_gscv.best_params_)
+print("LGR Best Score: ", lgr_gscv.best_score_)
+
+lgr_clf = lgr_gscv.best_estimator_
 y_pred_lgr = lgr_clf.predict(X_test)
 
 print( "\n\nPRINT RESULTS FOR Logistic Regression" )
@@ -285,8 +318,23 @@ print( confusion_matrix( y_test, y_pred_lgr ) )
 # K Nearest neighbors
 ###################################################################################
 
-knn_clf = KNeighborsClassifier(n_neighbors=5)
-knn_clf.fit(X_train_final, np.ravel(y_train_final))
+print( "\n\n--- k Nearest Neighbours ---\n\n" )
+
+param_grid_knn = {'n_neighbors': range(1, 31), 'weights': ['uniform', 'distance']}
+
+knn = KNeighborsClassifier()
+
+# Configure grid search with cross-validation to evaluate all possible combinations of parameters in the grid.
+knn_gscv = GridSearchCV(knn, param_grid_knn, cv=5)
+
+knn_gscv.fit(X_train_final, np.ravel(y_train_final))
+
+# Print the best parameters and the best score
+print("KNN Best Parameters: ", knn_gscv.best_params_)
+print("KNN Best Score: ", knn_gscv.best_score_)
+
+# Use the best hyperparameters found to fit the kNN model and predict the test set outcomes.
+knn_clf = knn_gscv.best_estimator_
 y_pred_knn = knn_clf.predict(X_test)
 
 print( "\n\nPRINT RESULTS FOR KNN" )
@@ -294,6 +342,7 @@ print("Accuracy:", accuracy_score(y_test, y_pred_knn))
 print(classification_report(y_test, y_pred_knn))
 
 print( confusion_matrix( y_test, y_pred_knn ) )
+
 
 ###################################################################################
 # ROC and AUC
